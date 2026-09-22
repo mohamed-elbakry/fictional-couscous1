@@ -330,7 +330,11 @@ function addSpacer(cm,line,px){
   widgets.push(cm.addLineWidget(Math.max(0,Math.min(line,cm.lineCount()-1)),node,{above:false,noHScroll:true}));
 }
 function alignEditors(){
-  clearWidgets();if(window.innerWidth<=860||!blocks.length)return;
+  clearWidgets();
+  // Never create visual spacer lines while either editor is empty.
+  // Otherwise a full modified text can push the empty original editor far away
+  // and make it feel impossible to click/type in.
+  if(window.innerWidth<=860||!blocks.length||!original.getValue().length||!modified.getValue().length)return;
   var checkpoints=[],seen={};
   blocks.forEach(function(b){
     var p1=original.posFromIndex(b.end1),p2=modified.posFromIndex(b.end2),key=p1.line+":"+p2.line;
@@ -409,7 +413,12 @@ function schedule(immediate){
   var delay=immediate?0:(total>200000?320:(total>70000?220:90));timer=setTimeout(compareNow,delay);
 }
 function syncScroll(source,target){
-  if(sync||window.innerWidth<=860)return;sync=true;var info=source.getScrollInfo();target.scrollTo(info.left,info.top);requestAnimationFrame(function(){sync=false});
+  // Do not drag an empty editor along with the populated side.
+  if(sync||window.innerWidth<=860||!source.getValue().length||!target.getValue().length)return;
+  sync=true;
+  var info=source.getScrollInfo();
+  target.scrollTo(info.left,info.top);
+  requestAnimationFrame(function(){sync=false});
 }
 function loadTheme(){try{var t=localStorage.getItem("elbakry-diff-theme-v3");if(t==="dark"||t==="light")document.documentElement.dataset.theme=t}catch(e){}}
 function toggleTheme(){
@@ -419,9 +428,30 @@ function toggleTheme(){
 }
 
 [original,modified].forEach(function(cm){
-  cm.on("focus",function(){lastEditor=cm});
+  cm.on("focus",function(){
+    lastEditor=cm;
+    // An empty editor must always open at its real first line, never inside
+    // an alignment spacer created from the other side.
+    if(!cm.getValue().length){
+      clearWidgets();
+      cm.scrollTo(0,0);
+      requestAnimationFrame(function(){cm.refresh()});
+    }
+  });
   cm.on("cursorActivity",function(){lastEditor=cm});
-  cm.on("change",function(){schedule(false)});
+  cm.on("beforeChange",function(){
+    // Remove alignment widgets before editing so they can never interfere
+    // with caret placement, paste, selection, or the first character typed.
+    clearWidgets();
+  });
+  cm.on("change",function(){
+    if(!original.getValue().length||!modified.getValue().length){
+      clearWidgets();
+      if(!original.getValue().length) original.scrollTo(0,0);
+      if(!modified.getValue().length) modified.scrollTo(0,0);
+    }
+    schedule(false);
+  });
 });
 original.on("scroll",function(){syncScroll(original,modified)});
 modified.on("scroll",function(){syncScroll(modified,original)});
