@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Elbakry Difference Checker — Live Review</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+<style>
+:root{
+  --bg:#090d16;--panel:#111827;--panel2:#172033;--panel3:#1d293d;--border:#2b3950;
+  --text:#eff6ff;--muted:#93a4bd;--accent:#4f8cff;--accentSoft:rgba(79,140,255,.16);
+  --add:#57d68d;--addBg:rgba(46,204,113,.20);--del:#ff7d85;--delBg:rgba(255,82,93,.20);
+  --review:#d9b65c;--reviewBg:rgba(217,182,92,.13);--ignored:#b9a8ff;--ignoredBg:rgba(153,123,255,.12);
+  --shadow:0 16px 40px rgba(0,0,0,.24);--radius:14px;--pad:16px;--font:16px;--line:1.8;
+}
+[data-theme="light"]{
+  --bg:#f3f6fb;--panel:#fff;--panel2:#f8fafc;--panel3:#eef3f9;--border:#d8e0eb;
+  --text:#132033;--muted:#67768a;--accent:#2563eb;--accentSoft:rgba(37,99,235,.10);
+  --add:#128448;--addBg:rgba(34,197,94,.16);--del:#d93b49;--delBg:rgba(239,68,68,.14);
+  --review:#8b6914;--reviewBg:rgba(180,135,20,.10);--ignored:#7253cc;--ignoredBg:rgba(114,83,204,.08);
+  --shadow:0 12px 32px rgba(15,23,42,.08);
+}
+*{box-sizing:border-box}
+html,body{width:100%;height:100%;margin:0}
+body{background:var(--bg);color:var(--text);font-family:"Segoe UI",Tahoma,Arial,system-ui,sans-serif;overflow:hidden}
+button{font:inherit;-webkit-tap-highlight-color:transparent}
+.app{height:100dvh;display:grid;grid-template-rows:auto auto 1fr;min-height:0}
+.toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 16px;background:var(--panel);border-bottom:1px solid var(--border);z-index:20}
+.brand{display:flex;align-items:center;gap:10px;min-width:0}
+.logo{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;color:white;font-weight:800;background:linear-gradient(135deg,#2f6dff,#7c52ff);box-shadow:0 8px 22px rgba(67,97,238,.25)}
+.brand-title{font-weight:750;white-space:nowrap}
+.brand-sub{color:var(--muted);font-size:.72rem;margin-top:3px}
+.actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap;justify-content:flex-end}
+.btn,.mini,.chip,.review-reset{border:1px solid var(--border);background:var(--panel2);color:var(--text);border-radius:10px;cursor:pointer;font-weight:650}
+.btn{padding:8px 11px;min-height:38px;display:inline-flex;align-items:center;gap:6px}
+.btn:hover,.mini:hover,.review-reset:hover{border-color:var(--accent);background:var(--panel3)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:white}
+.btn.danger{color:var(--del);background:transparent}
+.status{display:flex;align-items:center;gap:9px;padding:8px 16px;background:var(--panel);border-bottom:1px solid var(--border);overflow-x:auto;scrollbar-width:none;min-height:48px}
+.status::-webkit-scrollbar{display:none}
+.pill{display:inline-flex;align-items:center;gap:5px;padding:5px 9px;border-radius:999px;background:var(--panel2);border:1px solid var(--border);color:var(--muted);font-size:.82rem;white-space:nowrap}
+.pill strong{color:var(--text)}
+.pill.add strong{color:var(--add)} .pill.del strong{color:var(--del)}
+.pill.live{color:var(--add);background:var(--addBg);border-color:transparent}
+.pill.wait{color:var(--muted)} .pill.error{color:var(--del);background:var(--delBg);border-color:transparent}
+.ignore-strip{margin-inline-start:auto;display:flex;align-items:center;gap:5px;min-width:max-content}
+.ignore-label{color:var(--muted);font-size:.78rem;font-weight:650}
+#ignore-chips{display:flex;align-items:center;gap:5px}
+.chip{padding:4px 8px;border-radius:999px;color:var(--ignored);background:var(--ignoredBg);font-size:.74rem;font-family:Consolas,monospace;max-width:160px}
+.mini,.review-reset{padding:5px 8px;font-size:.74rem;color:var(--muted)}
+.workspace{min-height:0;padding:12px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
+.card{min-width:0;min-height:0;display:grid;grid-template-rows:auto 1fr;background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow)}
+.card:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accentSoft),var(--shadow)}
+.head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 11px;background:var(--panel2);border-bottom:1px solid var(--border);min-height:46px}
+.head-title{display:flex;align-items:center;gap:8px}.head-title strong{font-size:.9rem}.head-title small{color:var(--muted);font-size:.7rem}
+.head-tools{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.surface{position:relative;min-height:0;background:var(--panel)}
+textarea.source{display:none}
+.surface .CodeMirror{position:absolute;inset:0;width:100%;height:100%!important;background:var(--panel);color:var(--text);font-family:"Segoe UI",Tahoma,Arial,system-ui,sans-serif;font-size:var(--font);line-height:var(--line)}
+.CodeMirror-scroll{min-height:100%}
+.CodeMirror-lines{padding:var(--pad) 0}
+.CodeMirror pre.CodeMirror-line,.CodeMirror pre.CodeMirror-line-like{padding:0 var(--pad);font-family:inherit;line-height:var(--line);unicode-bidi:plaintext}
+.CodeMirror-cursor{border-left:2px solid var(--text)!important}
+.CodeMirror-selected{background:color-mix(in srgb,var(--accent) 34%,transparent)!important}
+.cm-del{background:var(--delBg);color:var(--del);border-radius:3px}
+.cm-add{background:var(--addBg);color:var(--add);border-radius:3px}
+.align-spacer{width:100%;min-height:1px;opacity:0;pointer-events:none}
+.toast{position:fixed;left:50%;bottom:18px;transform:translate(-50%,18px);opacity:0;pointer-events:none;z-index:100;background:var(--panel3);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:9px 12px;box-shadow:var(--shadow);font-size:.84rem;max-width:min(92vw,700px);text-align:center;transition:.18s}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+.switch{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:.78rem;font-weight:650}
+.switch input{accent-color:var(--accent)}
+@media(max-width:860px){
+ body{overflow:auto}.app{height:auto;min-height:100dvh;grid-template-rows:auto auto auto}
+ .toolbar{align-items:flex-start;flex-direction:column}.actions{justify-content:flex-start;width:100%}
+ .workspace{grid-template-columns:1fr;grid-template-rows:minmax(48vh,1fr) minmax(48vh,1fr);min-height:100dvh;padding:8px;gap:8px}
+ .card{min-height:48vh}.brand-sub{display:none}.status{padding-inline:9px}
+}
+@media(max-width:520px){
+ :root{--pad:12px;--font:15px;--line:1.7}
+ .toolbar{padding:9px 10px}.btn{padding:7px 8px;font-size:.76rem;min-height:35px}.optional{display:none}.head-title small{display:none}
+}
+</style>
+</head>
+<body>
+<main class="app">
+<header class="toolbar">
+  <div class="brand">
+    <div class="logo">EB</div>
+    <div><div class="brand-title">Elbakry Difference Checker</div><div class="brand-sub">Live compare + reviewed differences + smart alignment</div></div>
+  </div>
+  <div class="actions">
+    <label class="switch"><span>Live</span><input id="live-toggle" type="checkbox" checked></label>
+    <button class="btn" id="ignore-btn" type="button">تجاهل حرف</button>
+    <button class="btn primary" id="review-btn" type="button">✓ اعتماد الفرق</button>
+    <button class="btn" id="compare-btn" type="button">↻ <span class="optional">تحديث</span></button>
+    <button class="btn" id="theme-btn" type="button">◐</button>
+    <button class="btn danger" id="clear-btn" type="button">مسح</button>
+  </div>
+</header>
+
+<section class="status">
+  <div class="pill live" id="engine-status">● Live جاهز</div>
+  <div class="pill add">مضاف <strong id="added-stat">0</strong></div>
+  <div class="pill del">محذوف <strong id="removed-stat">0</strong></div>
+  <div class="pill">تغييرات <strong id="changes-stat">0</strong></div>
+  <div class="pill">تشابه <strong id="similarity-stat">100%</strong></div>
+  <div class="pill">مُراجع <strong id="reviewed-stat">0</strong></div>
+  <button class="review-reset" id="clear-reviewed" type="button" hidden>إظهار المراجَع</button>
+  <div class="ignore-strip">
+    <span class="ignore-label">حروف متجاهلة:</span>
+    <div id="ignore-chips"></div>
+    <button class="mini" id="clear-ignore" type="button" hidden>إلغاء الكل</button>
+  </div>
+</section>
+
+<section class="workspace">
+  <article class="card" data-side="original">
+    <div class="head">
+      <div class="head-title"><strong>النص الأصلي</strong><small>Original</small></div>
+      <div class="head-tools">
+        <button class="mini ignore-here" type="button">تجاهل حرف</button>
+        <button class="mini review-here" type="button">اعتماد الفرق</button>
+      </div>
+    </div>
+    <div class="surface"><textarea class="source" id="original" placeholder="الصق النص الأصلي هنا..."></textarea></div>
+  </article>
+  <article class="card" data-side="modified">
+    <div class="head">
+      <div class="head-title"><strong>النص المعدل</strong><small>Modified</small></div>
+      <div class="head-tools">
+        <button class="mini ignore-here" type="button">تجاهل حرف</button>
+        <button class="mini review-here" type="button">اعتماد الفرق</button>
+      </div>
+    </div>
+    <div class="surface"><textarea class="source" id="modified" placeholder="الصق النص المعدل هنا..."></textarea></div>
+  </article>
+</section>
+</main>
+<div class="toast" id="toast"></div>
+
+<script id="worker-source" type="text/plain">
+function buildFiltered(text,ignored){
+  var filtered="",map=[];
+  for(var i=0;i<text.length;){
+    var cp=text.codePointAt(i),ch=String.fromCodePoint(cp),n=ch.length;
+    if(!ignored.has(ch)){filtered+=ch;for(var j=0;j<n;j++)map.push(i+j)}
+    i+=n;
+  }
+  return {filtered:filtered,map:map};
+}
+function tokenize(text){
+  var tokens=[],re=/[\p{L}\p{N}_]+|\s+|[^\s\p{L}\p{N}_]+/gu,m;
+  while((m=re.exec(text))!==null)tokens.push({value:m[0],start:m.index,end:m.index+m[0].length});
+  return tokens;
+}
+function gv(map,key){var v=map.get(key);return v===undefined?-1e15:v}
+function myers(a,b,deadline,maxD){
+  var N=a.length,M=b.length;
+  if(!N&&!M)return[];
+  if(!N)return b.map(function(_,bi){return{op:1,bi:bi}});
+  if(!M)return a.map(function(_,ai){return{op:-1,ai:ai}});
+  var prefix=0;
+  while(prefix<N&&prefix<M&&a[prefix].value===b[prefix].value)prefix++;
+  var suffix=0;
+  while(suffix<N-prefix&&suffix<M-prefix&&a[N-1-suffix].value===b[M-1-suffix].value)suffix++;
+  var aStart=prefix,bStart=prefix,A=a.slice(aStart,N-suffix),B=b.slice(bStart,M-suffix),head=[],tail=[];
+  for(var h=0;h<prefix;h++)head.push({op:0,ai:h,bi:h});
+  for(var t=0;t<suffix;t++)tail.push({op:0,ai:N-suffix+t,bi:M-suffix+t});
+  if(!A.length)return head.concat(B.map(function(_,i){return{op:1,bi:bStart+i}}),tail);
+  if(!B.length)return head.concat(A.map(function(_,i){return{op:-1,ai:aStart+i}}),tail);
+  var n=A.length,m=B.length,limit=Math.min(n+m,maxD),v=new Map([[1,0]]),trace=[],solved=false;
+  outer:for(var d=0;d<=limit;d++){
+    if((d&31)===0&&performance.now()>deadline)break;
+    var next=new Map();
+    for(var k=-d;k<=d;k+=2){
+      var x;
+      if(k===-d||(k!==d&&gv(v,k-1)<gv(v,k+1)))x=Math.max(0,gv(v,k+1));
+      else x=Math.max(0,gv(v,k-1)+1);
+      var y=x-k;
+      while(x<n&&y<m&&y>=0&&A[x].value===B[y].value){x++;y++}
+      next.set(k,x);
+      if(x>=n&&y>=m){trace.push(next);solved=true;break outer}
+    }
+    trace.push(next);v=next;
+  }
+  if(!solved)return null;
+  var rx=n,ry=m,rev=[];
+  for(var dd=trace.length-1;dd>0;dd--){
+    var prev=trace[dd-1],kk=rx-ry,prevK;
+    if(kk===-dd||(kk!==dd&&gv(prev,kk-1)<gv(prev,kk+1)))prevK=kk+1;else prevK=kk-1;
+    var px=gv(prev,prevK);if(px<0)px=0;
+    var py=px-prevK;
+    while(rx>px&&ry>py){rev.push({op:0,ai:aStart+rx-1,bi:bStart+ry-1});rx--;ry--}
+    if(rx===px){if(ry>0){rev.push({op:1,bi:bStart+ry-1});ry--}}
+    else if(rx>0){rev.push({op:-1,ai:aStart+rx-1});rx--}
+  }
+  while(rx>0&&ry>0){rev.push({op:0,ai:aStart+rx-1,bi:bStart+ry-1});rx--;ry--}
+  while(rx>0){rev.push({op:-1,ai:aStart+rx-1});rx--}
+  while(ry>0){rev.push({op:1,bi:bStart+ry-1});ry--}
+  rev.reverse();return head.concat(rev,tail);
+}
+function tokenRange(token,map,textLength){
+  if(!token)return null;
+  var s=map[token.start],e=map[token.end-1];
+  if(s===undefined)return{start:textLength,end:textLength};
+  return{start:s,end:(e===undefined?s:e)+1};
+}
+function fallback(a,b){
+  var ops=[];for(var i=0;i<a.length;i++)ops.push({op:-1,ai:i});for(var j=0;j<b.length;j++)ops.push({op:1,bi:j});return ops;
+}
+function buildBlocks(ops,t1,t2,map1,map2,text1,text2){
+  var blocks=[],c1=0,c2=0,current=null;
+  function begin(){if(!current)current={start1:c1,end1:c1,start2:c2,end2:c2}}
+  function finish(){
+    if(!current)return;current.end1=c1;current.end2=c2;
+    if(current.end1>current.start1||current.end2>current.start2)blocks.push(current);current=null;
+  }
+  for(var i=0;i<ops.length;i++){
+    var it=ops[i],r1,r2;
+    if(it.op===0){
+      finish();r1=tokenRange(t1[it.ai],map1,text1.length);r2=tokenRange(t2[it.bi],map2,text2.length);
+      if(r1)c1=r1.end;if(r2)c2=r2.end;
+    }else if(it.op===-1){
+      begin();r1=tokenRange(t1[it.ai],map1,text1.length);if(r1)c1=r1.end;
+    }else{
+      begin();r2=tokenRange(t2[it.bi],map2,text2.length);if(r2)c2=r2.end;
+    }
+  }
+  finish();return blocks;
+}
+self.onmessage=function(e){
+  var d=e.data;
+  try{
+    var ignored=new Set(d.ignoredChars||[]),a=buildFiltered(d.text1,ignored),b=buildFiltered(d.text2,ignored);
+    var t1=tokenize(a.filtered),t2=tokenize(b.filtered),total=t1.length+t2.length;
+    var maxD=total>50000?800:(total>18000?1400:2600),budget=total>50000?500:(total>18000?700:950);
+    var ops=myers(t1,t2,performance.now()+budget,maxD),coarse=false;
+    if(!ops){coarse=true;ops=fallback(t1,t2)}
+    self.postMessage({id:d.id,blocks:buildBlocks(ops,t1,t2,a.map,b.map,d.text1,d.text2),coarse:coarse});
+  }catch(err){self.postMessage({id:d.id,error:err&&err.message?err.message:String(err)})}
+};
+</script>
+
+<script>
+(function(){
+"use strict";
+var $=function(id){return document.getElementById(id)};
+var live=$("live-toggle"),statusEl=$("engine-status"),toast=$("toast");
+if(typeof CodeMirror==="undefined"){statusEl.className="pill error";statusEl.textContent="تعذر تحميل المحرر";return}
+
+var original=CodeMirror.fromTextArea($("original"),{lineWrapping:true,lineNumbers:false,viewportMargin:40,inputStyle:"textarea"});
+var modified=CodeMirror.fromTextArea($("modified"),{lineWrapping:true,lineNumbers:false,viewportMargin:40,inputStyle:"textarea"});
+original.setSize("100%","100%");modified.setSize("100%","100%");
+
+var lastEditor=original,timer=null,worker=null,workerOK=false,req=0,applied=0,sync=false,toastTimer=null;
+var marks=[],widgets=[],blocks=[],lastCoarse=false;
+var ignored=new Set(loadSet("elbakry-diff-ignored-v3"));
+var reviewed=new Set(loadSet("elbakry-diff-reviewed-v3"));
+
+function loadSet(key){try{var x=JSON.parse(localStorage.getItem(key)||"[]");return Array.isArray(x)?x:[]}catch(e){return[]}}
+function saveSet(key,set){try{localStorage.setItem(key,JSON.stringify(Array.from(set)))}catch(e){}}
+function notify(msg){clearTimeout(toastTimer);toast.textContent=msg;toast.classList.add("show");toastTimer=setTimeout(function(){toast.classList.remove("show")},2500)}
+function setStatus(cls,text){statusEl.className="pill "+cls;statusEl.textContent=text}
+
+function detectDirection(text){
+  var sample=text.slice(0,1000);
+  var rtlIndex=sample.search(/[\u0590-\u08FF]/),ltrIndex=sample.search(/[A-Za-z]/);
+  if(rtlIndex<0)return"ltr";if(ltrIndex<0)return"rtl";return rtlIndex<ltrIndex?"rtl":"ltr";
+}
+function updateDirections(){
+  original.setOption("direction",detectDirection(original.getValue()));
+  modified.setOption("direction",detectDirection(modified.getValue()));
+}
+
+function printable(ch){
+  if(ch===" ")return"SPACE";if(ch==="\n")return"↵ LF";if(ch==="\r")return"CR";if(ch==="\t")return"⇥ TAB";
+  if(ch==="\u200B")return"ZWSP";if(ch==="\u200C")return"ZWNJ";if(ch==="\u200D")return"ZWJ";
+  if(ch==="\u00A0")return"NBSP";if(ch==="\u00AD")return"SHY";return ch;
+}
+function codePoint(ch){return"U+"+ch.codePointAt(0).toString(16).toUpperCase().padStart(4,"0")}
+function renderIgnored(){
+  var box=$("ignore-chips");box.innerHTML="";
+  ignored.forEach(function(ch){
+    var b=document.createElement("button");b.type="button";b.className="chip";b.textContent=printable(ch)+" "+codePoint(ch);
+    b.title="اضغط لإلغاء تجاهل هذا الحرف";b.onclick=function(){ignored.delete(ch);saveSet("elbakry-diff-ignored-v3",ignored);renderIgnored();schedule(true)};
+    box.appendChild(b);
+  });
+  $("clear-ignore").hidden=ignored.size===0;
+}
+function selectedOrChar(cm){
+  var s=cm.getSelection();if(s)return s;
+  var txt=cm.getValue(),i=cm.indexFromPos(cm.getCursor());
+  if(i<txt.length)return txt.slice(i,i+1);if(i>0)return txt.slice(i-1,i);return"";
+}
+function ignoreSelection(cm){
+  var s=selectedOrChar(cm);if(!s){notify("حدد حرفاً أو أكثر أولاً.");cm.focus();return}
+  var n=0;Array.from(s).forEach(function(ch){if(!ignored.has(ch)){ignored.add(ch);n++}});
+  if(!n){notify("الحرف أو الأحرف موجودة بالفعل في قائمة التجاهل.");return}
+  saveSet("elbakry-diff-ignored-v3",ignored);renderIgnored();schedule(true);
+  notify(n===1?"تم تجاهل الحرف في كل النص.":"تم تجاهل "+n+" أحرف في كل النص.");
+}
+
+function signature(b,t1,t2){
+  var c=64;
+  return JSON.stringify([
+    t1.slice(b.start1,b.end1),t2.slice(b.start2,b.end2),
+    t1.slice(Math.max(0,b.start1-c),b.start1),t1.slice(b.end1,b.end1+c),
+    t2.slice(Math.max(0,b.start2-c),b.start2),t2.slice(b.end2,b.end2+c)
+  ]);
+}
+function countWords(s){var m=s.match(/[\p{L}\p{N}_]+/gu);return m?m.length:0}
+function activeStats(t1,t2){
+  var a=0,r=0,changed=0,active=0,rev=0;
+  blocks.forEach(function(b){
+    if(b.isReviewed){rev++;return}
+    active++;var oldText=t1.slice(b.start1,b.end1),newText=t2.slice(b.start2,b.end2);
+    r+=countWords(oldText);a+=countWords(newText);changed+=Math.max(oldText.length,newText.length);
+  });
+  var base=Math.max(t1.length,t2.length,1),sim=Math.max(0,Math.min(100,Math.round((1-Math.min(base,changed)/base)*1000)/10));
+  $("added-stat").textContent=a;$("removed-stat").textContent=r;$("changes-stat").textContent=active;
+  $("similarity-stat").textContent=sim+"%";$("reviewed-stat").textContent=rev;$("clear-reviewed").hidden=reviewed.size===0;
+}
+function clearMarks(){marks.forEach(function(m){try{m.clear()}catch(e){}});marks=[]}
+function clearWidgets(){widgets.forEach(function(w){try{w.clear()}catch(e){}});widgets=[]}
+function addMark(cm,s,e,cls){if(e<=s)return;marks.push(cm.markText(cm.posFromIndex(s),cm.posFromIndex(e),{className:cls,clearOnEnter:false}))}
+function addSpacer(cm,line,px){
+  if(px<3)return;
+  var node=document.createElement("div");node.className="align-spacer";node.style.height=Math.min(px,1800)+"px";
+  widgets.push(cm.addLineWidget(Math.max(0,Math.min(line,cm.lineCount()-1)),node,{above:false,noHScroll:true}));
+}
+function alignEditors(){
+  clearWidgets();if(window.innerWidth<=860||!blocks.length)return;
+  var checkpoints=[],seen={};
+  blocks.forEach(function(b){
+    var p1=original.posFromIndex(b.end1),p2=modified.posFromIndex(b.end2),key=p1.line+":"+p2.line;
+    if(seen[key]!==undefined)checkpoints[seen[key]]={p1:p1,p2:p2};
+    else{seen[key]=checkpoints.length;checkpoints.push({p1:p1,p2:p2})}
+  });
+  checkpoints.forEach(function(cp){
+    var y1=original.charCoords(cp.p1,"local").bottom,y2=modified.charCoords(cp.p2,"local").bottom,delta=y1-y2;
+    if(delta>3)addSpacer(modified,cp.p2.line,delta);
+    else if(delta<-3)addSpacer(original,cp.p1.line,-delta);
+  });
+}
+function render(){
+  var t1=original.getValue(),t2=modified.getValue();clearMarks();
+  blocks.forEach(function(b){
+    b.sig=signature(b,t1,t2);b.isReviewed=reviewed.has(b.sig);
+    if(!b.isReviewed){addMark(original,b.start1,b.end1,"cm-del");addMark(modified,b.start2,b.end2,"cm-add")}
+  });
+  alignEditors();activeStats(t1,t2);
+  setStatus(lastCoarse?"wait":(live.checked?"live":"wait"),lastCoarse?"مقارنة سريعة لنص كبير جداً":(live.checked?"● Live متزامن ومحاذى":"Live متوقف"));
+}
+
+function rangeFor(cm){
+  var a=cm.indexFromPos(cm.getCursor("from")),b=cm.indexFromPos(cm.getCursor("to"));
+  return{start:Math.min(a,b),end:Math.max(a,b)};
+}
+function hits(b,cm,r){
+  var left=cm===original,s=left?b.start1:b.start2,e=left?b.end1:b.end2;
+  if(r.start===r.end){if(s===e)return Math.abs(r.start-s)<=1;return r.start>=s&&r.start<=e}
+  if(s===e)return s>=r.start&&s<=r.end;
+  return Math.max(s,r.start)<Math.min(e,r.end);
+}
+function approve(cm){
+  if(!blocks.length){notify("لا توجد اختلافات حالياً.");return}
+  var r=rangeFor(cm),matches=blocks.filter(function(b){return!b.isReviewed&&hits(b,cm,r)});
+  if(!matches.length&&r.start===r.end){
+    var line=cm.getCursor().line,left=cm===original;
+    matches=blocks.filter(function(b){
+      if(b.isReviewed)return false;
+      var s=left?b.start1:b.start2,e=left?b.end1:b.end2;
+      return cm.posFromIndex(s).line<=line&&cm.posFromIndex(e).line>=line;
+    });
+  }
+  if(!matches.length){notify("حدد الفرق أو السطر/المنطقة التي تحتوي عليه ثم اضغط «اعتماد الفرق».");cm.focus();return}
+  var t1=original.getValue(),t2=modified.getValue(),n=0;
+  matches.forEach(function(b){var sig=b.sig||signature(b,t1,t2);if(!reviewed.has(sig)){reviewed.add(sig);n++}});
+  saveSet("elbakry-diff-reviewed-v3",reviewed);render();
+  notify(n===1?"تم اعتماد هذا الاختلاف كمُراجع ولن يلوَّن مرة أخرى.":"تم اعتماد "+n+" اختلافات داخل المنطقة المحددة.");
+}
+
+function makeWorker(){
+  try{
+    var src=$("worker-source").textContent;
+    worker=new Worker(URL.createObjectURL(new Blob([src],{type:"application/javascript"})));workerOK=true;
+    worker.onmessage=function(e){
+      var d=e.data||{};if(d.id<req||d.id<=applied)return;
+      if(d.error){workerOK=false;setStatus("error","تعذر تشغيل محرك المقارنة");notify(d.error);return}
+      applied=d.id;blocks=Array.isArray(d.blocks)?d.blocks:[];lastCoarse=!!d.coarse;render();
+    };
+    worker.onerror=function(){workerOK=false;setStatus("error","محرك المقارنة غير متاح")};
+  }catch(e){workerOK=false;setStatus("error","محرك المقارنة غير متاح")}
+}
+function compareNow(){
+  clearTimeout(timer);updateDirections();
+  if(!original.getValue()&&!modified.getValue()){
+    blocks=[];clearMarks();clearWidgets();$("added-stat").textContent="0";$("removed-stat").textContent="0";$("changes-stat").textContent="0";$("similarity-stat").textContent="100%";$("reviewed-stat").textContent="0";
+    setStatus(live.checked?"live":"wait",live.checked?"● Live جاهز":"Live متوقف");return;
+  }
+  if(!workerOK||!worker)makeWorker();if(!workerOK||!worker)return;
+  var id=++req;setStatus("wait","جارٍ التحديث…");
+  worker.postMessage({id:id,text1:original.getValue(),text2:modified.getValue(),ignoredChars:Array.from(ignored)});
+}
+function schedule(immediate){
+  if(!live.checked&&!immediate){setStatus("wait","Live متوقف — اضغط تحديث");return}
+  clearTimeout(timer);var total=original.getValue().length+modified.getValue().length;
+  var delay=immediate?0:(total>200000?320:(total>70000?220:90));timer=setTimeout(compareNow,delay);
+}
+function syncScroll(source,target){
+  if(sync||window.innerWidth<=860)return;sync=true;var info=source.getScrollInfo();target.scrollTo(info.left,info.top);requestAnimationFrame(function(){sync=false});
+}
+function loadTheme(){try{var t=localStorage.getItem("elbakry-diff-theme-v3");if(t==="dark"||t==="light")document.documentElement.dataset.theme=t}catch(e){}}
+function toggleTheme(){
+  var next=document.documentElement.dataset.theme==="dark"?"light":"dark";document.documentElement.dataset.theme=next;
+  try{localStorage.setItem("elbakry-diff-theme-v3",next)}catch(e){}
+  setTimeout(function(){original.refresh();modified.refresh();alignEditors()},0);
+}
+
+[original,modified].forEach(function(cm){
+  cm.on("focus",function(){lastEditor=cm});
+  cm.on("cursorActivity",function(){lastEditor=cm});
+  cm.on("change",function(){schedule(false)});
+});
+original.on("scroll",function(){syncScroll(original,modified)});
+modified.on("scroll",function(){syncScroll(modified,original)});
+
+$("ignore-btn").onmousedown=function(e){e.preventDefault()};$("ignore-btn").onclick=function(){ignoreSelection(lastEditor)};
+$("review-btn").onmousedown=function(e){e.preventDefault()};$("review-btn").onclick=function(){approve(lastEditor)};
+document.querySelectorAll(".ignore-here").forEach(function(b){b.onmousedown=function(e){e.preventDefault()};b.onclick=function(){ignoreSelection(b.closest(".card").dataset.side==="original"?original:modified)}});
+document.querySelectorAll(".review-here").forEach(function(b){b.onmousedown=function(e){e.preventDefault()};b.onclick=function(){approve(b.closest(".card").dataset.side==="original"?original:modified)}});
+
+$("clear-ignore").onclick=function(){ignored.clear();saveSet("elbakry-diff-ignored-v3",ignored);renderIgnored();schedule(true);notify("تم إلغاء تجاهل الأحرف.")};
+$("clear-reviewed").onclick=function(){reviewed.clear();saveSet("elbakry-diff-reviewed-v3",reviewed);render();notify("تم إظهار كل الاختلافات التي سبق اعتمادها.")};
+$("compare-btn").onclick=function(){schedule(true)};
+$("theme-btn").onclick=toggleTheme;
+$("clear-btn").onclick=function(){original.setValue("");modified.setValue("");reviewed.clear();saveSet("elbakry-diff-reviewed-v3",reviewed);schedule(true);original.focus()};
+live.onchange=function(){if(live.checked)schedule(true);else setStatus("wait","Live متوقف — اضغط تحديث")};
+
+document.addEventListener("keydown",function(e){
+  if((e.ctrlKey||e.metaKey)&&e.key==="Enter"){e.preventDefault();schedule(true)}
+  if(e.altKey&&e.key.toLowerCase()==="i"){e.preventDefault();ignoreSelection(lastEditor)}
+  if(e.altKey&&e.key.toLowerCase()==="r"){e.preventDefault();approve(lastEditor)}
+});
+var resizeTimer=null;
+window.addEventListener("resize",function(){clearTimeout(resizeTimer);resizeTimer=setTimeout(function(){original.refresh();modified.refresh();alignEditors()},120)});
+
+loadTheme();renderIgnored();makeWorker();
+setTimeout(function(){original.refresh();modified.refresh();schedule(true)},0);
+})();
+</script>
+</body>
+</html>
